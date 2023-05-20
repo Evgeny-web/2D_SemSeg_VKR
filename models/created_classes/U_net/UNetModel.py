@@ -1,6 +1,5 @@
-from UnetParts import *
+from models.created_classes.U_net.UnetParts import *
 
-import torch
 from torch import nn
 
 
