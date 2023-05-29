@@ -17,7 +17,7 @@ def get_segformer_optimizer(model):
 
 CrossEntropyloss_fn = nn.CrossEntropyLoss()
 
-def iou_loss(logits, targets):
+def iou_metric(logits, targets):
     # Jaccard loss
     smooth = 1e-5
     num_classes = logits.size(1)
@@ -34,7 +34,7 @@ def iou_loss(logits, targets):
 
     return result
 
-def pixel_accuracy(logits, target):
+def pixel_metric(logits, target):
     _, predicted = torch.max(logits, 1)
     correct_pixels = (predicted == target).sum().item()
     total_pixels = target.numel()
@@ -43,7 +43,7 @@ def pixel_accuracy(logits, target):
     return accuracy
 
 
-def f1_score(logits, target):
+def f1_metric(logits, target):
     # Преобразование предсказанных меток в бинарный формат
     logits = torch.round(logits)
 
