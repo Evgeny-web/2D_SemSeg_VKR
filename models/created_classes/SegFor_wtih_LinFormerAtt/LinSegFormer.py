@@ -5,6 +5,14 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
+from mhsa import compute_mhsa
+
+
+def project_vk_linformer(v, k, E):
+    # project k,v
+    v = torch.einsum('b h j d , j k -> b h k d', v, E)
+    k = torch.einsum('b h j d , j k -> b h k d', k, E)
+    return v, k
 
 
 class SegFormer(nn.Module):
@@ -70,6 +78,55 @@ class OverlapPatchMerging(nn.Sequential):
         )
 
 
+class LinformerAttention(nn.Module):
+    def __init__(self, dim, heads=8, dim_head=None, shared_projection=True, proj_shape=None, trainable_proj=True):
+        """
+        Based on the Linformer paper
+        Link: https://arxiv.org/pdf/2006.04768.pdf
+
+        Args:
+            dim: token's dimension, i.e. word embedding vector size
+            heads: the number of distinct representations to learn
+            dim_head: the dim of the head.
+
+            shared_projection: if the projection matrix will be shared among layers
+            (it will have to be passed in the forward that way)
+            trainable_proj: if the projection matrix E matrix is not shared,
+            you can enable this option to make it trainable (non trainable in the paper)
+            proj_shape: 2-tuple (tokens,k), where k is the projection dimension of the linformer
+            """
+        super().__init__()
+        self.dim_head = (int(dim / heads)) if dim_head is None else dim_head
+        _dim = self.dim_head * heads
+        self.heads = heads
+        self.to_qvk = nn.Linear(dim, _dim * 3, bias=False)
+        self.W_0 = nn.Linear(_dim, dim, bias=False)
+        self.scale_factor = self.dim_head ** -0.5
+        self.shared_projection = shared_projection
+
+        if not shared_projection:
+            self.E = torch.nn.Parameter(torch.randn(proj_shape), requires_grad=trainable_proj)
+            self.k = proj_shape[1]
+
+    def forward(self, x, proj_mat=None):
+        assert x.dim() == 3
+        E = proj_mat if (self.shared_projection and proj_mat is not None) else self.E
+        assert x.shape[1] == E.shape[0], f'{x.shape[1]} Token in the input sequence while' \
+                                         f' {E.shape[0]} were provided in the E proj matrix'
+
+        qkv = self.to_qvk(x)  # [batch, tokens, dim*3*heads ]
+        q, k, v = tuple(rearrange(qkv, 'b t (d k h ) -> k b h t d ', k=3, h=self.heads))
+
+        v, k = project_vk_linformer(v, k, E)
+
+        out = compute_mhsa(q, k, v, scale_factor=self.scale_factor)
+        # re-compose: merge heads with dim_head
+
+        out = rearrange(out, "b h i d -> b i (h d)")
+        # Apply final linear transformation layer
+        return self.W_0(out)
+
+
 class EfficientMultiHeadAttention(nn.Module):
     def __init__(self, channels: int, reduction_ratio: int = 1, num_heads: int = 8):
         super().__init__()
@@ -79,17 +136,21 @@ class EfficientMultiHeadAttention(nn.Module):
             ),
             LayerNorm2d(channels),
         )
-        self.att = nn.MultiheadAttention(
-            channels, num_heads=num_heads, batch_first=True
+        self.att = LinformerAttention(
+            channels, heads=num_heads
         )
 
     def forward(self, x):
+        print(f'shapw x before: {x.shape}')
         _, _, h, w = x.shape
         reduced_x = self.reducer(x)
+        print(f'reduced_x after reducer: {reduced_x.shape}')
         # attention needs tensor of shape (batch, sequence_length, channels)
         reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
         x = rearrange(x, "b c h w -> b (h w) c")
-        out = self.att(x, reduced_x, reduced_x)[0]
+        print(f"shape reduces_x: {reduced_x.shape}")
+        print(f"shape x: {x.shape}")
+        out = self.att(x, reduced_x)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
         return out
@@ -282,39 +343,27 @@ class SegFormerSegmentationHead(nn.Module):
         return x
 
 
-
-# r = 4
-# channels = 8
-# x = torch.randn((1, channels, 64, 64))
-# _, _, h, w = x.shape
-# # we want a vector of shape 1, 8, 32, 32
-# x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
-# x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
-# reducer = nn.Linear(channels*r, channels)
-# x = reducer(x) # shape = [1, 1024, 8]
-# half_r = r // 2
-# x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
-# print(x.shape)
+# segformer = SegFormer(
+#     in_channels=3,
+#     widths=[64, 128, 256, 512],
+#     depths=[3, 4, 6, 3],
+#     all_num_heads=[1, 2, 4, 8],
+#     patch_sizes=[7, 3, 3, 3],
+#     overlap_sizes=[4, 2, 2, 2],
+#     reduction_ratios=[8, 4, 2, 1],
+#     mlp_expansions=[4, 4, 4, 4],
+#     decoder_channels=256,
+#     scale_factors=[8, 4, 2, 1],
+#     num_classes=20,
+# )
 #
-# x = torch.randn((1, channels, 64, 64))
-# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-# print(block(x).shape)
+# segmentation = segformer(torch.randn((1, 3, 256, 256)))
+# print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
+# print(segmentation.size())
 
+r=4
+channels = 8
 
-segformer = SegFormer(
-    in_channels=3,
-    widths=[64, 128, 256, 512],
-    depths=[3, 4, 6, 3],
-    all_num_heads=[1, 2, 4, 8],
-    patch_sizes=[7, 3, 3, 3],
-    overlap_sizes=[4, 2, 2, 2],
-    reduction_ratios=[8, 4, 2, 1],
-    mlp_expansions=[4, 4, 4, 4],
-    decoder_channels=256,
-    scale_factors=[8, 4, 2, 1],
-    num_classes=20,
-)
-
-segmentation = segformer(torch.randn((1, 3, 256, 512)))
-print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
-print(segmentation.size())
+x = torch.randn((1, channels, 64, 64))
+block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+print(block(x).shape)

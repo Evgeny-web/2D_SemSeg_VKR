@@ -65,19 +65,19 @@ transform_A = A.Compose(
 
 
 def resize_masks(masks, predict):
-    new_masks = torch.zeros([masks.shape[0], predict.shape[1], predict.shape[2]])
+    new_masks = torch.zeros([masks.shape[0], predict.shape[2], predict.shape[3]])
 
     transform_mask = A.Compose(
         [
-            A.Resize(predict.shape[1], predict.shape[2]),
+            A.Resize(predict.shape[2], predict.shape[3]),
         ])
 
     for i, im in enumerate(masks):
-        np_targets = transform_mask(image=im.numpy())
+        np_targets = transform_mask(image=im.cpu().numpy())
         seg = torch.tensor(np_targets['image'])
         new_masks[i] = seg
 
-    return new_masks
+    return new_masks.to('cuda')
 
 def encode_segmap(mask):
     """
@@ -171,9 +171,9 @@ def get_dataloader_cityscapes(batch_size: int = 2):
                                  batch_size=batch_size,
                                  shuffle=True)
 
-    train_step_vizualise_loss = len(train_dataloader) // 6
-    val_step_vizualise_loss = len(val_dataloader) // 5
-    test_step_vizualise_loss = len(test_dataloader) // 5
+    train_step_vizualise_loss = len(train_dataloader) // 2
+    val_step_vizualise_loss = len(val_dataloader) // 2
+    test_step_vizualise_loss = len(test_dataloader) // 2
 
     return train_dataloader, val_dataloader, test_dataloader, \
         train_step_vizualise_loss, val_step_vizualise_loss, test_step_vizualise_loss
