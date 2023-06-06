@@ -8,7 +8,7 @@ from typing import List, Iterable
 from longformer2d import *
 
 
-class SegFormer(nn.Module):
+class LongSegFormer(nn.Module):
     def __init__(
             self,
             in_channels: int,

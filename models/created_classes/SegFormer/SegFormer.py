@@ -298,23 +298,23 @@ class SegFormerSegmentationHead(nn.Module):
 
 
 
-r = 1
-channels = 8
-# x = torch.randn((1, channels, 64, 64))
-# _, _, h, w = x.shape
-# # we want a vector of shape 1, 8, 32, 32
-# x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
-# x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
-# reducer = nn.Linear(channels*r, channels)
-# x = reducer(x) # shape = [1, 1024, 8]
-# half_r = r // 2
-# x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
-# print(x.shape)
+# r = 1
+# channels = 8
+# # x = torch.randn((1, channels, 64, 64))
+# # _, _, h, w = x.shape
+# # # we want a vector of shape 1, 8, 32, 32
+# # x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
+# # x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
+# # reducer = nn.Linear(channels*r, channels)
+# # x = reducer(x) # shape = [1, 1024, 8]
+# # half_r = r // 2
+# # x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
+# # print(x.shape)
+# #
 #
-
-x = torch.randn((1, channels, 64, 64))
-block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-print(block(x).shape)
+# x = torch.randn((1, channels, 64, 64))
+# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+# print(block(x).shape)
 
 
 # segformer = SegFormer(

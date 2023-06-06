@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 from utils.cityscapes_dataloader import decode_segmap
+from time import time
+from torchmetrics import F1Score, JaccardIndex
 
 
 def get_unet_optimizer(model):
@@ -18,41 +20,29 @@ def get_segformer_optimizer(model):
     return optimizer
 
 
-CrossEntropyloss_fn = nn.CrossEntropyLoss()
+def get_cross_entropy_loss():
+    return nn.CrossEntropyLoss()
 
 
-def iou_metric(logits, targets):
+def iou_metric(logits, targets, device):
     # Jaccard loss
-    smooth = 1e-5
+    # start_time = time()
+    logits = torch.round(logits)
     num_classes = logits.size(1)
-    result = 0.0
 
-    for index in range(len(logits)):
-        loss = 0.0
-        for i in range(num_classes):
-            intersection = 0
-            iflat = logits[index, i].contiguous().view(-1)
-            tflat = targets[index].contiguous().view(-1)
+    iou = JaccardIndex(task='multiclass', num_classes=num_classes).to(device)
+    result = iou(logits, targets)
 
-            for j in range(len(tflat)):
-                if iflat[j] == i and tflat[j] == i:
-                    intersection += 1
+    # end_time = time()
+    # IoU_time = end_time - start_time
+    # print(f'Время затраченное для подсчета IoU метрики:{IoU_time}')
 
-            union_i = (iflat == i).sum()
-            union_t = (tflat == i).sum()
-            union = union_t + union_i - intersection
-
-            loss += (intersection + smooth) / (union + smooth)
-
-        result += loss / num_classes
-
-    result /= len(logits)
-
-    return result
+    return round(result.item(), 5)
 
 
 def pixel_metric(logits, target):
     accuracy = 0.0
+    # start_time = time()
     for index in range(len(logits)):
         dec_logits = decode_segmap(torch.argmax(logits[index].cpu(), dim=0))
         dec_target = decode_segmap(target[index].cpu())
@@ -61,49 +51,31 @@ def pixel_metric(logits, target):
         accuracy += correct_pixels / total_pixels
 
     accuracy /= len(logits)
+    # end_time = time()
+    # Pixel_time = end_time - start_time
+    # print(f'Время затраченное для подсчета Pixel метрики:{Pixel_time}')
 
-    return round(accuracy, 2)
+    return round(accuracy, 5)
 
 
-def f1_metric(logits, target):
+def f1_metric(logits, target, device):
+    # start_time = time()
     # Преобразование предсказанных меток в бинарный формат
     logits = torch.round(logits)
+    num_classes = logits.size(1)
 
-    # Вычисление TP, FP и FN
-    tp = torch.sum(target * logits, dim=(1, 2))
-    fp = torch.sum(logits, dim=(1, 2)) - tp
-    fn = torch.sum(target, dim=(1, 2)) - tp
+    F1 = F1Score(task='multiclass', num_classes=num_classes).to(device)
 
-    # Вычисление precision, recall и F1-score
-    precision = tp / (tp + fp + 1e-7)
-    recall = tp / (tp + fn + 1e-7)
-    f1 = 2 * (precision * recall) / (precision + recall + 1e-7)
+    result = F1(logits, target)
 
-    # Усреднение F1-score по классам
-    f1_macro = torch.mean(f1)
+    # end_time = time()
+    # f1_time = end_time - start_time
+    # print(f'Время затраченное для подсчета f1 метрики:{f1_time}')
 
-    return f1_macro
+    return round(result.item(), 5)
 
-
-# x1 = torch.tensor(data=[[[[1, 1, 1, 1],
-#                           [1, 1, 1, 1],
-#                           [0, 0, 0, 0],
-#                           [0, 0, 0, 0]],
-#                          [[0, 0, 0, 0],
-#                           [1, 1, 1, 1],
-#                           [0, 0, 0, 0],
-#                           [1, 1, 1, 1]]
-#                          ]],device='cuda')
+# x1 = torch.randint(size=(4, 20, 512, 512), high=19, dtype=torch.float)
+# x2 = torch.randint(size=(4, 512, 512), high=19, dtype=torch.float)
 #
-# x2 = torch.tensor(data=[[[1, 1, 1, 1],
-#                          [1, 1, 1, 1],
-#                          [0, 0, 0, 0],
-#                          [0, 0, 0, 0]]
-#                         ],device='cuda')
-# print(x1.shape)
-# print(x2.shape)
-# print(f'x2[0]: {x2[0]}')
-# print(f'x1[0]: {x1[0]}')
-#
-# res = iou_metric(x1, x2)
-# print(f'res: {res}')
+# i = f1_metric(x1, x2)
+# print(i)

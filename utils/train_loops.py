@@ -4,6 +4,7 @@ from torch import nn
 
 from utils.cityscapes_dataloader import encode_segmap, decode_segmap, resize_masks
 from utils.optimizers_loss_functions import iou_metric, pixel_metric, f1_metric
+from time import time
 
 
 def train_step(model, dataloader, loss_fn, optimizer, epoch, device, train_step_vizualise_loss, segformer: bool = False,
@@ -192,9 +193,9 @@ def train_step_v2(model, dataloader, loss_fn, optimizer, epoch, device, train_st
 
         # Calculate Loss
         loss = loss_fn(y_pred, seg.long())
-        iou_loss_score += iou_metric(y_pred, seg)
+        iou_loss_score += iou_metric(y_pred, seg, device)
         pixel_loss_score += pixel_metric(y_pred, seg)
-        f1_loss_score += f1_metric(y_pred, seg)
+        f1_loss_score += f1_metric(y_pred, seg, device)
 
         train_loss += loss
 
@@ -214,10 +215,8 @@ def train_step_v2(model, dataloader, loss_fn, optimizer, epoch, device, train_st
     print(f"Epoch: {epoch} Train Pixel loss: {pixel_loss_score:.4f}")
     print(f"Epoch: {epoch} Train F1 loss: {f1_loss_score:.4f}")
 
-    if device == 'cuda':
-        return [train_loss.cpu().item(), iou_loss_score.cpu().item(), pixel_loss_score, f1_loss_score.cpu().item()]
-    else:
-        return [train_loss, iou_loss_score, pixel_loss_score, f1_loss_score]
+    return [train_loss.item(), iou_loss_score, pixel_loss_score, f1_loss_score]
+
 
 
 def val_step_v2(model, dataloader, loss_fn, epoch, device, val_step_vizualise_loss, segformer: bool = False):
@@ -242,9 +241,9 @@ def val_step_v2(model, dataloader, loss_fn, epoch, device, val_step_vizualise_lo
             seg = encode_segmap(seg.clone())
             # Calculate Loss
             loss = loss_fn(val_pred, seg.long())
-            iou_loss += iou_metric(val_pred, seg)
+            iou_loss += iou_metric(val_pred, seg, device)
             pixel_loss += pixel_metric(val_pred, seg)
-            f1_loss += f1_metric(val_pred, seg)
+            f1_loss += f1_metric(val_pred, seg, device)
 
             val_loss += loss
 
@@ -260,10 +259,7 @@ def val_step_v2(model, dataloader, loss_fn, epoch, device, val_step_vizualise_lo
         print(f"Epoch: {epoch} Val Pixel loss: {pixel_loss:.4f}")
         print(f"Epoch: {epoch} Val F1 loss: {f1_loss:.4f}")
 
-    if device == 'cuda':
-        return [val_loss.cpu().item(), iou_loss.cpu().item(), pixel_loss, f1_loss.cpu().item()]
-    else:
-        return [val_loss, iou_loss, pixel_loss, f1_loss]
+    return [val_loss.item(), iou_loss, pixel_loss, f1_loss]
 
 
 def test_step_v2(model, dataloader, loss_fn, device, segformer: bool = False):
@@ -290,9 +286,9 @@ def test_step_v2(model, dataloader, loss_fn, device, segformer: bool = False):
 
             # Calculate Loss
             loss = loss_fn(test_pred, seg.long())
-            iou_loss += iou_metric(test_pred, seg)
+            iou_loss += iou_metric(test_pred, seg, device)
             pixel_loss += pixel_metric(test_pred, seg)
-            f1_loss += f1_metric(test_pred, seg.unsqueeze(dim=1))
+            f1_loss += f1_metric(test_pred, seg.unsqueeze(dim=1), device)
 
             test_loss += loss
 
