@@ -7,23 +7,23 @@ from torchvision.ops import StochasticDepth
 from typing import List, Iterable
 from longformer2d import *
 
+
 class SegFormer(nn.Module):
     def __init__(
-        self,
-        in_channels: int,
-        widths: List[int],
-        depths: List[int],
-        all_num_heads: List[int],
-        patch_sizes: List[int],
-        overlap_sizes: List[int],
-        reduction_ratios: List[int],
-        mlp_expansions: List[int],
-        decoder_channels: int,
-        scale_factors: List[int],
-        num_classes: int,
-        drop_prob: float = 0.0,
+            self,
+            in_channels: int,
+            widths: List[int],
+            depths: List[int],
+            all_num_heads: List[int],
+            patch_sizes: List[int],
+            overlap_sizes: List[int],
+            reduction_ratios: List[int],
+            mlp_expansions: List[int],
+            decoder_channels: int,
+            scale_factors: List[int],
+            num_classes: int,
+            drop_prob: float = 0.0,
     ):
-
         super().__init__()
         self.encoder = SegFormerEncoder(
             in_channels,
@@ -47,6 +47,7 @@ class SegFormer(nn.Module):
         segmentation = self.head(features)
         return segmentation
 
+
 class LayerNorm2d(nn.LayerNorm):
     def forward(self, x):
         x = rearrange(x, "b c h w -> b h w c")
@@ -55,9 +56,10 @@ class LayerNorm2d(nn.LayerNorm):
         return x
 
 
-class OverlapPatchMerging(nn.Sequential):
+class OverlapPatchMerging(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, patch_size: int, overlap_size: int):
-        super().__init__(
+        super().__init__()
+        self.overlapLayer = nn.Sequential(
             nn.Conv2d(
                 in_channels,
                 out_channels,
@@ -69,31 +71,44 @@ class OverlapPatchMerging(nn.Sequential):
             LayerNorm2d(out_channels)
         )
 
+    def forward(self, x):
+        pathces_img = self.overlapLayer(x)
+        return pathces_img
+
+
+# print(f"LongFOrmer _________")
+# tensor = torch.randn(1,3,512,512)
+# overlap = OverlapPatchMerging(3, 64, 7, 4)
+# output, nx, ny = overlap(tensor)
+# print(output.shape)
+# print(f'nx: {nx}, ny: {ny}')
+# print('______________')
+
 
 class EfficientMultiHeadAttention(nn.Module):
     def __init__(self, channels: int, reduction_ratio: int = 1, num_heads: int = 8):
         super().__init__()
-        self.reducer = nn.Sequential(
-            nn.Conv2d(
-                channels, channels, kernel_size=reduction_ratio, stride=reduction_ratio
-            ),
-            LayerNorm2d(channels),
-        )
         self.att = Long2DSCSelfAttention(
-            channels, num_heads=num_heads
+            channels, num_heads=num_heads, nglo=0
         )
 
     def forward(self, x):
         _, _, h, w = x.shape
-        reduced_x = self.reducer(x)
-        # attention needs tensor of shape (batch, sequence_length, channels)
-        reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
+        nx, ny = x.shape[-2:]
+
         x = rearrange(x, "b c h w -> b (h w) c")
-        out = self.att(x, reduced_x, reduced_x)
+        # print(f'x after rearrange: {x.shape}')
+        out = self.att(x, nx, ny)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
         return out
 
+
+# ratio = 4
+# channels = output.shape[1]
+# att = EfficientMultiHeadAttention(channels, ratio)
+# output = att(output, nx, ny)
+# print(f'Output after att: {output.shape}')
 
 class MixMLP(nn.Sequential):
     def __init__(self, channels: int, expansion: int = 4):
@@ -265,13 +280,14 @@ class SegFormerDecoder(nn.Module):
             new_features.append(x)
         return new_features
 
+
 class SegFormerSegmentationHead(nn.Module):
     def __init__(self, channels: int, num_classes: int, num_features: int = 4):
         super().__init__()
         self.fuse = nn.Sequential(
             nn.Conv2d(channels * num_features, channels, kernel_size=1, bias=False),
-            nn.ReLU(), # why relu? Who knows
-            nn.BatchNorm2d(channels) # why batchnorm and not layer norm? Idk
+            nn.ReLU(),  # why relu? Who knows
+            nn.BatchNorm2d(channels)  # why batchnorm and not layer norm? Idk
         )
         self.predict = nn.Conv2d(channels, num_classes, kernel_size=1)
 
@@ -281,24 +297,22 @@ class SegFormerSegmentationHead(nn.Module):
         x = self.predict(x)
         return x
 
-
-
-r = 4
-channels = 8
-x = torch.randn((1, channels, 64, 64))
-_, _, h, w = x.shape
-# we want a vector of shape 1, 8, 32, 32
-x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
-x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
-reducer = nn.Linear(channels*r, channels)
-x = reducer(x) # shape = [1, 1024, 8]
-half_r = r // 2
-x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
-print(x.shape)
-
-x = torch.randn((1, channels, 64, 64))
-block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-print(block(x).shape)
+# r = 4
+# channels = 8
+# x = torch.randn((1, channels, 64, 64))
+# _, _, h, w = x.shape
+# # we want a vector of shape 1, 8, 32, 32
+# x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
+# x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
+# reducer = nn.Linear(channels*r, channels)
+# x = reducer(x) # shape = [1, 1024, 8]
+# half_r = r // 2
+# x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
+# print(x.shape)
+#
+# x = torch.randn((1, channels, 64, 64))
+# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+# print(block(x).shape)
 
 
 # segformer = SegFormer(

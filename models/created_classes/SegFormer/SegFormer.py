@@ -85,14 +85,29 @@ class EfficientMultiHeadAttention(nn.Module):
 
     def forward(self, x):
         _, _, h, w = x.shape
+        # print(f'x sahpe in start: {x.shape}')
         reduced_x = self.reducer(x)
+
+        # print(f'reduced x after reducer: {reduced_x.shape}')
         # attention needs tensor of shape (batch, sequence_length, channels)
+
         reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
         x = rearrange(x, "b c h w -> b (h w) c")
+
+        # print(f'x shape: {x.shape}')
+        # print(f'reduced x shape: {reduced_x.shape}')
+        # print('------------')
+        # print((reduced_x * reduced_x).shape)
+        # print('------------')
+
         out = self.att(x, reduced_x, reduced_x)[0]
+        # print(f'out after att: {out.shape}')
+
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
+        # print(f'out after rearrange: {out.shape}')
         return out
+
 
 
 class MixMLP(nn.Sequential):
@@ -283,8 +298,8 @@ class SegFormerSegmentationHead(nn.Module):
 
 
 
-# r = 4
-# channels = 8
+r = 1
+channels = 8
 # x = torch.randn((1, channels, 64, 64))
 # _, _, h, w = x.shape
 # # we want a vector of shape 1, 8, 32, 32
@@ -296,25 +311,26 @@ class SegFormerSegmentationHead(nn.Module):
 # x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
 # print(x.shape)
 #
-# x = torch.randn((1, channels, 64, 64))
-# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-# print(block(x).shape)
+
+x = torch.randn((1, channels, 64, 64))
+block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+print(block(x).shape)
 
 
-segformer = SegFormer(
-    in_channels=3,
-    widths=[64, 128, 256, 512],
-    depths=[3, 4, 6, 3],
-    all_num_heads=[1, 2, 4, 8],
-    patch_sizes=[7, 3, 3, 3],
-    overlap_sizes=[4, 2, 2, 2],
-    reduction_ratios=[8, 4, 2, 1],
-    mlp_expansions=[4, 4, 4, 4],
-    decoder_channels=256,
-    scale_factors=[8, 4, 2, 1],
-    num_classes=20,
-)
-
-segmentation = segformer(torch.randn((1, 3, 256, 512)))
-print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
-print(segmentation.size())
+# segformer = SegFormer(
+#     in_channels=3,
+#     widths=[64, 128, 256, 512],
+#     depths=[3, 4, 6, 3],
+#     all_num_heads=[1, 2, 4, 8],
+#     patch_sizes=[7, 3, 3, 3],
+#     overlap_sizes=[4, 2, 2, 2],
+#     reduction_ratios=[8, 4, 2, 1],
+#     mlp_expansions=[4, 4, 4, 4],
+#     decoder_channels=256,
+#     scale_factors=[8, 4, 2, 1],
+#     num_classes=20,
+# )
+#
+# segmentation = segformer(torch.randn((1, 3, 256, 512)))
+# print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
+# print(segmentation.size())

@@ -5,12 +5,15 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 from einops import rearrange
+
 from timm.models.layers import trunc_normal_
+from timm.models.layers import DropPath, trunc_normal_, to_2tuple
+
 from slidingchunk_2d import slidingchunk_2d, mask_invalid_locations, slidingchunk_2dautograd
 
 class Long2DSCSelfAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., w=7, d=1,
-                 autoregressive=False, sharew=False, nglo=1, only_glo=False, exact=0, autograd=False, rpe=False, mode=0):
+                 autoregressive=False, sharew=False, nglo=0, only_glo=False, exact=0, autograd=False, rpe=False, mode=0):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
@@ -277,3 +280,92 @@ class Long2DSCSelfAttention(nn.Module):
 
         module.__flops__ += macs
         # return n_params, macs
+
+
+# x1 = torch.randn(1, 262144, 8)
+# att = Long2DSCSelfAttention(dim=768)
+# out = att(x1, 512, 512)
+# print(out.shape)
+
+class PatchEmbed(nn.Module):
+    """ Image to Patch Embedding
+    """
+
+    def __init__(self, patch_size, nx, ny, in_chans=3, embed_dim=768, nglo=0,
+                 norm_layer=nn.LayerNorm, norm_embed=True, drop_rate=0.0,
+                 ape=True):
+        # maximal global/x-direction/y-direction tokens: nglo, nx, ny
+        super().__init__()
+        patch_size = to_2tuple(patch_size)
+        self.patch_size = patch_size
+
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
+                              stride=patch_size)
+
+        self.norm_embed = norm_layer(embed_dim) if norm_embed else None
+
+        self.nx = nx
+        self.ny = ny
+        self.Nglo = nglo
+        if nglo >= 1:
+            self.cls_token = nn.Parameter(torch.zeros(1, nglo, embed_dim))
+            trunc_normal_(self.cls_token, std=.02)
+        else:
+            self.cls_token = None
+        self.ape = ape
+        if ape:
+            self.cls_pos_embed = nn.Parameter(torch.zeros(1, nglo, embed_dim))
+            self.x_pos_embed = nn.Parameter(torch.zeros(1, nx, embed_dim // 2))
+            self.y_pos_embed = nn.Parameter(torch.zeros(1, ny, embed_dim // 2))
+            trunc_normal_(self.cls_pos_embed, std=.02)
+            trunc_normal_(self.x_pos_embed, std=.02)
+            trunc_normal_(self.y_pos_embed, std=.02)
+
+        self.pos_drop = nn.Dropout(p=drop_rate)
+
+    def forward(self, xtuple):
+        x, nx, ny = xtuple
+        B = x.shape[0]
+
+        x = self.proj(x)
+        nx, ny = x.shape[-2:]
+        x = x.flatten(2).transpose(1, 2)
+        assert nx == self.nx and ny == self.ny, f"Fix input size! nx: {nx} ny: {ny} self.nx:{self.nx} self.ny: {self.ny}"
+
+        if self.norm_embed:
+            x = self.norm_embed(x)
+
+        # concat cls_token
+        if self.cls_token is not None:
+            cls_tokens = self.cls_token.expand(
+                B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+            x = torch.cat((cls_tokens, x), dim=1)
+
+        if self.ape:
+            # add position embedding
+            pos_embed_2d = torch.cat([
+                self.x_pos_embed.unsqueeze(2).expand(-1, -1, ny, -1),
+                self.y_pos_embed.unsqueeze(1).expand(-1, nx, -1, -1),
+            ], dim=-1).flatten(start_dim=1, end_dim=2)
+            x = x + torch.cat([self.cls_pos_embed, pos_embed_2d], dim=1).expand(
+                B, -1, -1)
+
+        x = self.pos_drop(x)
+
+        return x, nx, ny
+
+
+# tensor = torch.tensor([[[[1,1],
+#                          [1,1]]]])
+#
+# # print(f"tensor shape: {tensor.shape}")
+#
+# patch_size = 16
+# x2 = torch.randn(1,3, 512, 512)
+# proj = nn.Conv2d(3, 64, kernel_size=patch_size, stride=patch_size)
+# print(proj(x2).shape)
+# nx, ny = proj(x2).shape[-2:]
+# patches = PatchEmbed(patch_size, nx, ny)
+# out, new_nx, new_ny = patches((x2, nx, ny))
+# print(out.shape)
+# print(f'new nx: {new_nx}, new ny: {new_ny}')
