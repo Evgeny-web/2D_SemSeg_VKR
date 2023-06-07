@@ -16,7 +16,7 @@ print(f'Device is {device}!')
 
 # Get train dataloader cityscapes
 
-train_dataloader, val_dataloader, test_dataloader, train_step_viz_loss, val_step_viz_loss, test_step_viz_loss = get_dataloader_cityscapes(6)
+train_dataloader, val_dataloader, test_dataloader, train_step_viz_loss, val_step_viz_loss, test_step_viz_loss = get_dataloader_cityscapes(2)
 
 list_name_loss = ['loss.txt', 'IoU_loss.txt', 'Pixel_acc.txt', 'F1_loss.txt']
 path_loss_metrics = '../models/loss_metrics/LongSegformer'

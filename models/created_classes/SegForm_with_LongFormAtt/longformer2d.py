@@ -9,12 +9,13 @@ from einops import rearrange
 from timm.models.layers import trunc_normal_
 from timm.models.layers import DropPath, trunc_normal_, to_2tuple
 
-from slidingchunk_2d import slidingchunk_2d, mask_invalid_locations, slidingchunk_2dautograd
+from models.created_classes.SegForm_with_LongFormAtt.slidingchunk_2d import slidingchunk_2d, mask_invalid_locations, slidingchunk_2dautograd
 
 class Long2DSCSelfAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., w=7, d=1,
                  autoregressive=False, sharew=False, nglo=0, only_glo=False, exact=0, autograd=False, rpe=False, mode=0):
         super().__init__()
+        self.dim=dim
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = qk_scale or self.head_dim ** -0.5
@@ -203,6 +204,7 @@ class Long2DSCSelfAttention(nn.Module):
             x1 = rearrange(x1, 'b c m n (x y) -> b (m x) (n y) c', x=W)
             x1 = x1[:, :nx, :ny].reshape(B, H, Nloc, M)
         x1 = x1.transpose(1, 2).reshape(B, Nloc, C)
+        x1 = x1.to(torch.float32)
         x1 = self.proj(x1)
 
         if Nglo == 0:

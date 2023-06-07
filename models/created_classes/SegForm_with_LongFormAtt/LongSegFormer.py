@@ -5,7 +5,7 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
-from longformer2d import *
+from models.created_classes.SegForm_with_LongFormAtt.longformer2d import *
 
 
 class LongSegFormer(nn.Module):
@@ -329,6 +329,6 @@ class SegFormerSegmentationHead(nn.Module):
 #     num_classes=20,
 # )
 #
-# segmentation = segformer(torch.randn((1, 3, 256, 256)))
-# print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
+# segmentation = segformer(torch.randn((4, 3, 256, 512)))
+# print(segmentation.shape[2])
 # print(segmentation.size())
