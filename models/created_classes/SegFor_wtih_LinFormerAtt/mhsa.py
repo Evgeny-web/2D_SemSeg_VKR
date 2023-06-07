@@ -4,6 +4,13 @@ from einops import rearrange
 from torch import nn
 
 
+def project_vk_linformer(v, k, E):
+    # project k,v
+    v = torch.einsum('b h j d , j k -> b h k d', v, E)
+    k = torch.einsum('b h j d , j k -> b h k d', k, E)
+    return v, k
+
+
 def compute_mhsa(q, k, v, scale_factor=1, mask=None):
     # resulted shape will be: [batch, heads, tokens, tokens]
     scaled_dot_prod = torch.einsum('... i d , ... j d -> ... i j', q, k) * scale_factor

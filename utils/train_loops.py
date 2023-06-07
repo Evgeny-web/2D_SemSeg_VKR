@@ -305,5 +305,5 @@ def test_step_v2(model, dataloader, loss_fn, device, segformer: bool = False):
             "model_average_loss": test_loss,
             "model_IoU_loss": mean_iou_loss,
             "model_Pixel_loss": mean_pixel_loss,
-            "model_F1_loss": mean_f1_loss,
-            "model_list_batches": batches_list}
+            "model_F1_loss": mean_f1_loss,}
+            # "model_list_batches": batches_list}

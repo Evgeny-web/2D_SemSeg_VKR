@@ -15,7 +15,7 @@ def project_vk_linformer(v, k, E):
     return v, k
 
 
-class SegFormer(nn.Module):
+class LinSegFormer(nn.Module):
     def __init__(
         self,
         in_channels: int,
@@ -63,9 +63,10 @@ class LayerNorm2d(nn.LayerNorm):
         return x
 
 
-class OverlapPatchMerging(nn.Sequential):
+class OverlapPatchMerging(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, patch_size: int, overlap_size: int):
-        super().__init__(
+        super().__init__()
+        self.overlapLayer = nn.Sequential(
             nn.Conv2d(
                 in_channels,
                 out_channels,
@@ -76,6 +77,10 @@ class OverlapPatchMerging(nn.Sequential):
             ),
             LayerNorm2d(out_channels)
         )
+
+    def forward(self, x):
+        pathces_img = self.overlapLayer(x)
+        return pathces_img
 
 
 class LinformerAttention(nn.Module):
@@ -141,19 +146,37 @@ class EfficientMultiHeadAttention(nn.Module):
         )
 
     def forward(self, x):
-        print(f'shapw x before: {x.shape}')
+        # print(f'shapw x before: {x.shape}')
+        # print(f'x dim() : {x.dim()}')
         _, _, h, w = x.shape
         reduced_x = self.reducer(x)
-        print(f'reduced_x after reducer: {reduced_x.shape}')
+        # print(f'reduced_x after reducer: {reduced_x.shape}')
         # attention needs tensor of shape (batch, sequence_length, channels)
         reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
         x = rearrange(x, "b c h w -> b (h w) c")
-        print(f"shape reduces_x: {reduced_x.shape}")
-        print(f"shape x: {x.shape}")
-        out = self.att(x, reduced_x)
+        # print(f"shape reduces_x: {reduced_x.shape}")
+        # print(f"shape x: {x.shape}")
+        # proj_shape
+        proj_mat = torch.nn.Parameter(torch.randn(x.size()[1], x.size()[1]//4), requires_grad=True)
+        # print(f'proj_mat.shape: {proj_mat.shape}')
+        out = self.att(x, proj_mat)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
         return out
+
+# print(f"LinFOrmer _________")
+# tensor = torch.randn(1,3,512,512)
+# overlap = OverlapPatchMerging(3, 64, 7, 4)
+# output = overlap(tensor)
+# print(f'output shape after patch merging: {output.shape}')
+# print('______________')
+#
+# ratio = 4
+# channels = output.shape[1]
+# att = EfficientMultiHeadAttention(channels, ratio)
+# output = att(output)
+# print(f'Output after att: {output.shape}')
+
 
 
 class MixMLP(nn.Sequential):
@@ -343,7 +366,7 @@ class SegFormerSegmentationHead(nn.Module):
         return x
 
 
-# segformer = SegFormer(
+# segformer = LinSegFormer(
 #     in_channels=3,
 #     widths=[64, 128, 256, 512],
 #     depths=[3, 4, 6, 3],
@@ -357,13 +380,13 @@ class SegFormerSegmentationHead(nn.Module):
 #     num_classes=20,
 # )
 #
-# segmentation = segformer(torch.randn((1, 3, 256, 256)))
+# segmentation = segformer(torch.randn((4, 3, 256, 512)))
 # print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
 # print(segmentation.size())
 
-r=4
-channels = 8
-
-x = torch.randn((1, channels, 64, 64))
-block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-print(block(x).shape)
+# r=4
+# channels = 8
+#
+# x = torch.randn((1, channels, 64, 64))
+# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+# print(block(x).shape)

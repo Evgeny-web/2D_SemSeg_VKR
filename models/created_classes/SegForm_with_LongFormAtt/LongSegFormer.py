@@ -315,7 +315,7 @@ class SegFormerSegmentationHead(nn.Module):
 # print(block(x).shape)
 
 
-# segformer = SegFormer(
+# segformer = LongSegFormer(
 #     in_channels=3,
 #     widths=[64, 128, 256, 512],
 #     depths=[3, 4, 6, 3],
