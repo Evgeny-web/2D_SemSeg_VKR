@@ -1,5 +1,5 @@
 # Import needs libraries
-from models.created_classes.SegFor_wtih_LinFormerAtt.LinSegFormer import LinSegFormer
+from models.created_classes.LongAttUnet.LongAttentionUnet import LongAttentionUnetModel
 from utils.cityscapes_dataloader import *
 from utils.optimizers_loss_functions import *
 from utils.checkpoints import checkpoint
@@ -19,21 +19,12 @@ print(f'Device is {device}!')
 train_dataloader, val_dataloader, test_dataloader, train_step_viz_loss, val_step_viz_loss, test_step_viz_loss = get_dataloader_cityscapes(2)
 
 list_name_loss = ['loss.txt', 'IoU_loss.txt', 'Pixel_acc.txt', 'F1_loss.txt']
-path_loss_metrics = '../models/loss_metrics/LinSegFormer'
+path_loss_metrics = '../models/loss_metrics/LongAttUnet'
 
-segmodel = LinSegFormer(in_channels=3,
-    widths=[64, 128, 256, 512],
-    depths=[3, 4, 6, 3],
-    all_num_heads=[1, 2, 4, 8],
-    patch_sizes=[7, 3, 3, 3],
-    overlap_sizes=[4, 2, 2, 2],
-    reduction_ratios=[8, 4, 2, 1],
-    mlp_expansions=[4, 4, 4, 4],
-    decoder_channels=256,
-    scale_factors=[8, 4, 2, 1],
-    num_classes=20).to(device)
+segmodel = LongAttentionUnetModel(in_channels=3,
+                                 out_channels=20).to(device)
 
-optimizer = get_segformer_optimizer(segmodel)
+optimizer = get_attunet_optimizer(segmodel)
 loss_fn = get_cross_entropy_loss()
 
 epochs = 600
@@ -42,6 +33,7 @@ epochs = 600
 for epoch in range(epochs):
     epoch += 1
     print(f"------------------\nEpoch: {epoch} from {epochs}\n------------------")
+
     start_time=time()
 
     res_train_loss = train_step_v2(model=segmodel,
@@ -50,23 +42,21 @@ for epoch in range(epochs):
                                    optimizer=optimizer,
                                    epoch=epoch,
                                    device=device,
-                                   train_step_vizualise_loss=train_step_viz_loss,
-                                   segformer=True)
+                                   train_step_vizualise_loss=train_step_viz_loss)
 
     res_val_loss = val_step_v2(model=segmodel,
                                dataloader=val_dataloader,
                                loss_fn=loss_fn,
                                epoch=epoch,
                                device=device,
-                               val_step_vizualise_loss=val_step_viz_loss,
-                               segformer=True)
+                               val_step_vizualise_loss=val_step_viz_loss)
 
     end_time = time()
     total_time = end_time - start_time
     print(f'Время затраченное на одну эпоху: {total_time}')
 
     if epoch % 50 == 0:
-        name = f"../models/checkpoints/LinSegFormer/LinSegFormer-{epoch}-from-{epochs}.pth"
+        name = f"../models/checkpoints/LongAttUnet/{epoch}-from-{epochs}.pth"
         checkpoint(segmodel, name)
 
     for name_loss in list_name_loss:

@@ -56,7 +56,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                         numberConvLayers=2,
                         )
 
-        model.load_state_dict(torch.load(f'../models/checkpoints/AttUnet/{num_epoch}-75.pth'))
+        model.load_state_dict(torch.load(f'../models/checkpoints/AttUnet/{num_epoch}-300.pth'))
         model.to(device)
 
     elif name_model == "SegFormer":
@@ -143,4 +143,3 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
 
     plt.savefig(fname=f'../models/figure_out_results/{name_model}-{num_epoch}.png', format="png")
 
-vizualise_result_semseg("UNetModel", 'val', 'cuda', 200)

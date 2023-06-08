@@ -122,6 +122,9 @@ class LinformerAttention(nn.Module):
         qkv = self.to_qvk(x)  # [batch, tokens, dim*3*heads ]
         q, k, v = tuple(rearrange(qkv, 'b t (d k h ) -> k b h t d ', k=3, h=self.heads))
 
+        if E.device != k.device:
+            E = E.to(k.device)
+
         v, k = project_vk_linformer(v, k, E)
 
         out = compute_mhsa(q, k, v, scale_factor=self.scale_factor)

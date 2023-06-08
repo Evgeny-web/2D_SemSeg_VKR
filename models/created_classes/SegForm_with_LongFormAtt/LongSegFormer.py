@@ -8,6 +8,7 @@ from typing import List, Iterable
 from models.created_classes.SegForm_with_LongFormAtt.longformer2d import *
 
 
+
 class LongSegFormer(nn.Module):
     def __init__(
             self,
@@ -94,6 +95,7 @@ class EfficientMultiHeadAttention(nn.Module):
 
     def forward(self, x):
         _, _, h, w = x.shape
+        # print(f'x shape: {x.shape}')
         nx, ny = x.shape[-2:]
 
         x = rearrange(x, "b c h w -> b (h w) c")
