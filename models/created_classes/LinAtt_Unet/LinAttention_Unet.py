@@ -8,11 +8,13 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
+from models.created_classes.SegFor_wtih_LinFormerAtt.LinAttVision import LinformerSelfAttention
 
 
 class LinAttentionUnetModel(nn.Module):
     def __init__(self, in_channels: int,
                  out_channels: int,
+                 seq_len: int,
                  padding: int = 1,
                  stride: int = 1,
                  kernel: int = 3,
@@ -34,13 +36,13 @@ class LinAttentionUnetModel(nn.Module):
                                             stride=stride, kernel=kernel, numberConvLayers=numberConvLayers)
 
         # Decoder
-        self.decode_layer_1 = Decoder_block(in_channels=512, out_channels=256, padding=padding,
+        self.decode_layer_1 = Decoder_block(in_channels=512, out_channels=256, seq_len=seq_len, padding=padding,
                                             stride=stride, kernel=kernel, numberConvLayers=numberConvLayers,
                                             mode=mode, align_corner=align_corner, num_heads=num_heads, patch_size=2, overlap_size=0)
-        self.decode_layer_2 = Decoder_block(in_channels=256, out_channels=128, padding=padding,
+        self.decode_layer_2 = Decoder_block(in_channels=256, out_channels=128, seq_len=seq_len, padding=padding,
                                             stride=stride, kernel=kernel, numberConvLayers=numberConvLayers,
                                             mode=mode, align_corner=align_corner, num_heads=num_heads, patch_size=4, overlap_size=0)
-        self.decode_layer_3 = Decoder_block(in_channels=128, out_channels=64, padding=padding,
+        self.decode_layer_3 = Decoder_block(in_channels=128, out_channels=64, seq_len=seq_len, padding=padding,
                                             stride=stride, kernel=kernel, numberConvLayers=numberConvLayers,
                                             mode=mode, align_corner=align_corner, num_heads=num_heads, patch_size=8, overlap_size=0)
 
@@ -204,58 +206,6 @@ class Encoder_block(nn.Module):
         return s
 
 
-class LinformerAttention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=None, shared_projection=True, proj_shape=None, trainable_proj=True):
-        """
-        Based on the Linformer paper
-        Link: https://arxiv.org/pdf/2006.04768.pdf
-
-        Args:
-            dim: token's dimension, i.e. word embedding vector size
-            heads: the number of distinct representations to learn
-            dim_head: the dim of the head.
-
-            shared_projection: if the projection matrix will be shared among layers
-            (it will have to be passed in the forward that way)
-            trainable_proj: if the projection matrix E matrix is not shared,
-            you can enable this option to make it trainable (non trainable in the paper)
-            proj_shape: 2-tuple (tokens,k), where k is the projection dimension of the linformer
-            """
-        super().__init__()
-        self.dim_head = (int(dim / heads)) if dim_head is None else dim_head
-        _dim = self.dim_head * heads
-        self.heads = heads
-        self.to_qvk = nn.Linear(dim, _dim * 3, bias=False)
-        self.W_0 = nn.Linear(_dim, dim, bias=False)
-        self.scale_factor = self.dim_head ** -0.5
-        self.shared_projection = shared_projection
-
-        if not shared_projection:
-            self.E = torch.nn.Parameter(torch.randn(proj_shape), requires_grad=trainable_proj)
-            self.k = proj_shape[1]
-
-    def forward(self, x, proj_mat=None):
-        assert x.dim() == 3
-        E = proj_mat if (self.shared_projection and proj_mat is not None) else self.E
-        assert x.shape[1] == E.shape[0], f'{x.shape[1]} Token in the input sequence while' \
-                                         f' {E.shape[0]} were provided in the E proj matrix'
-
-        qkv = self.to_qvk(x)  # [batch, tokens, dim*3*heads ]
-        q, k, v = tuple(rearrange(qkv, 'b t (d k h ) -> k b h t d ', k=3, h=self.heads))
-
-        if E.device != k.device:
-            E = E.to(k.device)
-
-        v, k = project_vk_linformer(v, k, E)
-
-        out = compute_mhsa(q, k, v, scale_factor=self.scale_factor)
-        # re-compose: merge heads with dim_head
-
-        out = rearrange(out, "b h i d -> b i (h d)")
-        # Apply final linear transformation layer
-        return self.W_0(out)
-
-
 class Attention_Gate(nn.Module):
     """
     Mechanism attention for UNet
@@ -268,6 +218,7 @@ class Attention_Gate(nn.Module):
 
     def __init__(self, input: int,
                  output: int,
+                 seq_len: int,
                  patch_size: int = 4,
                  overlap_size: int = 1,
                  num_heads: int = 8,
@@ -281,20 +232,19 @@ class Attention_Gate(nn.Module):
                                               patch_size=patch_size,
                                               overlap_size=overlap_size)
 
-        self.att_gate = LinformerAttention(output, heads=num_heads)
+        self.att_gate = LinformerSelfAttention(output, seq_len=seq_len, num_heads=num_heads)
 
         self.up_layer = nn.Upsample(scale_factor=patch_size, mode=mode, align_corners=align_corner)
 
     def forward(self, x):
         x = self.conv_layer(x)
+        print(f'x shape: {x.shape}')
         # print(f'x shape: {x.shape}')
 
         _, _, h, w = x.shape
         x = rearrange(x, "b c h w -> b (h w) c")
-        # proj_shape
-        proj_mat = torch.nn.Parameter(torch.randn(x.size()[1], x.size()[1] // 4), requires_grad=True)
 
-        out = self.att_gate(x, proj_mat)
+        out = self.att_gate(x)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
 
@@ -321,6 +271,7 @@ class Decoder_block(nn.Module):
 
     def __init__(self, in_channels: int,
                  out_channels: int,
+                 seq_len: int,
                  mode: str = "bilinear",  # Upsampling algoritms
                  align_corner: bool = False,
                  padding: int = 1,
@@ -333,7 +284,7 @@ class Decoder_block(nn.Module):
         super().__init__()
 
         self.up_layer = nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corner)
-        self.ag = Attention_Gate(input=in_channels, output=out_channels, patch_size=patch_size, overlap_size=overlap_size,
+        self.ag = Attention_Gate(input=in_channels, output=out_channels, seq_len=seq_len, patch_size=patch_size, overlap_size=overlap_size,
                  mode=mode, align_corner=align_corner, num_heads=num_heads)
         self.c1 = ConvBlock(in_channels=out_channels, out_channels=out_channels, padding=padding,
                             stride=stride, kernel=kernel, numberConvLayers=numberConvLayers)
@@ -368,7 +319,7 @@ class OutConv(nn.Module):
         return self.output_conv(x)
 
 
-# Linatt_model = LinAttentionUnetModel(3, 20)
+# Linatt_model = LinAttentionUnetModel(3, 20, 2048)
 # tensor = torch.randn(1, 3, 256, 512)
 # out = Linatt_model(tensor)
 # print(f'output shape: {out.shape}')

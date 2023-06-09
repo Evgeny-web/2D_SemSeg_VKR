@@ -1,5 +1,6 @@
 # Import needs libraries
 from models.created_classes.SegFor_wtih_LinFormerAtt.LinSegFormer import LinSegFormer
+from models.created_classes.SegFor_wtih_LinFormerAtt.NewLinSegFormer import NewLinSegFormer
 from utils.cityscapes_dataloader import *
 from utils.optimizers_loss_functions import *
 from utils.checkpoints import checkpoint
@@ -16,13 +17,14 @@ print(f'Device is {device}!')
 
 # Get train dataloader cityscapes
 
-train_dataloader, val_dataloader, test_dataloader, train_step_viz_loss, val_step_viz_loss, test_step_viz_loss = get_dataloader_cityscapes(2)
+train_dataloader, val_dataloader, test_dataloader, train_step_viz_loss, val_step_viz_loss, test_step_viz_loss = get_dataloader_cityscapes(4)
 
 list_name_loss = ['loss.txt', 'IoU_loss.txt', 'Pixel_acc.txt', 'F1_loss.txt']
 path_loss_metrics = '../models/loss_metrics/LinSegFormer'
 
-segmodel = LinSegFormer(in_channels=3,
+segmodel = NewLinSegFormer(in_channels=3,
     widths=[64, 128, 256, 512],
+    seq_len=[8192, 2048, 512, 128], # Only for NewLinSegFormer, another ignore this sentence
     depths=[3, 4, 6, 3],
     all_num_heads=[1, 2, 4, 8],
     patch_sizes=[7, 3, 3, 3],
@@ -66,7 +68,7 @@ for epoch in range(epochs):
     print(f'Время затраченное на одну эпоху: {total_time}')
 
     if epoch % 50 == 0:
-        name = f"../models/checkpoints/LinSegFormer/LinSegFormer-{epoch}-from-{epochs}.pth"
+        name = f"../models/checkpoints/LinSegFormer/{epoch}-from-{epochs}.pth"
         checkpoint(segmodel, name)
 
     for name_loss in list_name_loss:

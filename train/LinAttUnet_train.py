@@ -22,7 +22,9 @@ list_name_loss = ['loss.txt', 'IoU_loss.txt', 'Pixel_acc.txt', 'F1_loss.txt']
 path_loss_metrics = '../models/loss_metrics/LinAttUnet'
 
 segmodel = LinAttentionUnetModel(in_channels=3,
-                                 out_channels=20).to(device)
+                                 out_channels=20,
+                                 seq_len=2048 # Only for lin Attention Unet model
+                                 ).to(device)
 
 optimizer = get_attunet_optimizer(segmodel)
 loss_fn = get_cross_entropy_loss()

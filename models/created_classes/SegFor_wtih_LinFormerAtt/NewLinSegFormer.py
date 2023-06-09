@@ -6,7 +6,7 @@ from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
 from models.created_classes.SegFor_wtih_LinFormerAtt.mhsa import compute_mhsa
-
+from models.created_classes.SegFor_wtih_LinFormerAtt.LinAttVision import LinformerSelfAttention
 
 def project_vk_linformer(v, k, E):
     # project k,v
@@ -15,11 +15,12 @@ def project_vk_linformer(v, k, E):
     return v, k
 
 
-class LinSegFormer(nn.Module):
+class NewLinSegFormer(nn.Module):
     def __init__(
         self,
         in_channels: int,
         widths: List[int],
+        seq_len: List[int],
         depths: List[int],
         all_num_heads: List[int],
         patch_sizes: List[int],
@@ -35,6 +36,7 @@ class LinSegFormer(nn.Module):
         super().__init__()
         self.encoder = SegFormerEncoder(
             in_channels,
+            seq_len,
             widths,
             depths,
             all_num_heads,
@@ -83,87 +85,32 @@ class OverlapPatchMerging(nn.Module):
         return pathces_img
 
 
-class LinformerAttention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=None, shared_projection=True, proj_shape=None, trainable_proj=True):
-        """
-        Based on the Linformer paper
-        Link: https://arxiv.org/pdf/2006.04768.pdf
-
-        Args:
-            dim: token's dimension, i.e. word embedding vector size
-            heads: the number of distinct representations to learn
-            dim_head: the dim of the head.
-
-            shared_projection: if the projection matrix will be shared among layers
-            (it will have to be passed in the forward that way)
-            trainable_proj: if the projection matrix E matrix is not shared,
-            you can enable this option to make it trainable (non trainable in the paper)
-            proj_shape: 2-tuple (tokens,k), where k is the projection dimension of the linformer
-            """
-        super().__init__()
-        self.dim_head = (int(dim / heads)) if dim_head is None else dim_head
-        _dim = self.dim_head * heads
-        self.heads = heads
-        self.to_qvk = nn.Linear(dim, _dim * 3, bias=False)
-        self.W_0 = nn.Linear(_dim, dim, bias=False)
-        self.scale_factor = self.dim_head ** -0.5
-        self.shared_projection = shared_projection
-
-        if not shared_projection:
-            self.E = torch.nn.Parameter(torch.randn(proj_shape), requires_grad=trainable_proj)
-            self.k = proj_shape[1]
-
-    def forward(self, x, proj_mat=None):
-        assert x.dim() == 3
-        E = proj_mat if (self.shared_projection and proj_mat is not None) else self.E
-        assert x.shape[1] == E.shape[0], f'{x.shape[1]} Token in the input sequence while' \
-                                         f' {E.shape[0]} were provided in the E proj matrix'
-
-        qkv = self.to_qvk(x)  # [batch, tokens, dim*3*heads ]
-        q, k, v = tuple(rearrange(qkv, 'b t (d k h ) -> k b h t d ', k=3, h=self.heads))
-
-        if E.device != k.device:
-            E = E.to(k.device)
-
-        v, k = project_vk_linformer(v, k, E)
-
-        out = compute_mhsa(q, k, v, scale_factor=self.scale_factor)
-        # re-compose: merge heads with dim_head
-
-        out = rearrange(out, "b h i d -> b i (h d)")
-        # Apply final linear transformation layer
-        return self.W_0(out)
-
-
 class EfficientMultiHeadAttention(nn.Module):
-    def __init__(self, channels: int, reduction_ratio: int = 1, num_heads: int = 8):
+    def __init__(self, channels: int, seq_len: int,  reduction_ratio: int = 1, num_heads: int = 8):
         super().__init__()
+        self.channels = channels
         self.reducer = nn.Sequential(
             nn.Conv2d(
                 channels, channels, kernel_size=reduction_ratio, stride=reduction_ratio
             ),
             LayerNorm2d(channels),
         )
-        self.att = LinformerAttention(
-            channels, heads=num_heads
+        self.att = LinformerSelfAttention(
+            dim=channels, seq_len=seq_len, num_heads=num_heads
         )
 
     def forward(self, x):
         # print(f'shapw x before: {x.shape}')
         # print(f'x dim() : {x.dim()}')
+        # print(f'x shape: {x.shape}')
         _, _, h, w = x.shape
-        reduced_x = self.reducer(x)
-        # print(f'reduced_x after reducer: {reduced_x.shape}')
-        # attention needs tensor of shape (batch, sequence_length, channels)
-        reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
+        # reduced_x = self.reducer(x)
+        # # print(f'reduced_x after reducer: {reduced_x.shape}')
+        # # attention needs tensor of shape (batch, sequence_length, channels)
+        # reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
         x = rearrange(x, "b c h w -> b (h w) c")
-        # print(f"shape reduces_x: {reduced_x.shape}")
-        # print(f"shape x: {x.shape}")
-        # proj_shape
-        proj_mat = torch.nn.Parameter(torch.randn(x.size()[1], x.size()[1]//4), requires_grad=True)
 
-        # print(f'proj_mat.shape: {proj_mat.shape}')
-        out = self.att(x, proj_mat)
+        out = self.att(x)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
         return out
@@ -219,6 +166,7 @@ class SegFormerEncoderBlock(nn.Sequential):
     def __init__(
             self,
             channels: int,
+            seq_len: int,
             reduction_ratio: int = 1,
             num_heads: int = 8,
             mlp_expansion: int = 4,
@@ -228,7 +176,7 @@ class SegFormerEncoderBlock(nn.Sequential):
             ResidualAdd(
                 nn.Sequential(
                     LayerNorm2d(channels),
-                    EfficientMultiHeadAttention(channels, reduction_ratio, num_heads),
+                    EfficientMultiHeadAttention(channels, seq_len, reduction_ratio, num_heads),
                 )
             ),
             ResidualAdd(
@@ -246,6 +194,7 @@ class SegFormerEncoderStage(nn.Sequential):
             self,
             in_channels: int,
             out_channels: int,
+            seq_len: int,
             patch_size: int,
             overlap_size: int,
             drop_probs: List[int],
@@ -261,7 +210,7 @@ class SegFormerEncoderStage(nn.Sequential):
         self.blocks = nn.Sequential(
             *[
                 SegFormerEncoderBlock(
-                    out_channels, reduction_ratio, num_heads, mlp_expansion, drop_probs[i]
+                    out_channels, seq_len, reduction_ratio, num_heads, mlp_expansion, drop_probs[i]
                 )
                 for i in range(depth)
             ]
@@ -291,6 +240,7 @@ class SegFormerEncoder(nn.Module):
     def __init__(
             self,
             in_channels: int,
+            seq_len: List[int],
             widths: List[int],
             depths: List[int],
             all_num_heads: List[int],
@@ -309,6 +259,7 @@ class SegFormerEncoder(nn.Module):
                 for args in zip(
                 [in_channels, *widths],
                 widths,
+                seq_len,
                 patch_sizes,
                 overlap_sizes,
                 chunks(drop_probs, sizes=depths),
@@ -370,9 +321,10 @@ class SegFormerSegmentationHead(nn.Module):
         return x
 
 
-# segformer = LinSegFormer(
+# segformer = NewLinSegFormer(
 #     in_channels=3,
 #     widths=[64, 128, 256, 512],
+#     seq_len=[8192, 2048, 512, 128],
 #     depths=[3, 4, 6, 3],
 #     all_num_heads=[1, 2, 4, 8],
 #     patch_sizes=[7, 3, 3, 3],
