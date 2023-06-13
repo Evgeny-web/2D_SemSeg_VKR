@@ -18,7 +18,6 @@ from albumentations.pytorch import ToTensorV2
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from torchvision.datasets import Cityscapes
 
-
 data_path = "/media/evgeny/6610D40610D3DB5F/Download_Softwares/PyCharm/Projects/2D_SemSeg_VKR/Datasets/CityScapes"
 
 ignore_index = 255
@@ -78,6 +77,7 @@ def resize_masks(masks, predict):
         new_masks[i] = seg
 
     return new_masks.to('cuda')
+
 
 def encode_segmap(mask):
     """
@@ -139,23 +139,24 @@ class MyClassCityscapes(Cityscapes):
         return transformed['image'], transformed['mask']
 
 
+def get_data_cityscapes_class(data_path: str, split: str, mode: str, target_type: str, transform,
+                              target_transform=None):
+    datas = MyClassCityscapes(root=data_path,
+                              split=split,
+                              mode=mode,
+                              target_type=target_type,
+                              transforms=transform,
+                              target_transform=target_transform)
+
+    return datas
+
+
 def get_dataloader_cityscapes(batch_size: int = 2):
     """
     :param batch_size:
     :return: train_dataloader, val_dataloader, test_dataloader,
-            ignore_index, valid_classes, n_classes, class_map, label_colors
+            train_step_vizualise_loss, val_step_vizualise_loss, test_step_vizualise_loss
     """
-
-    def get_data_cityscapes_class(data_path: str, split: str, mode: str, target_type: str, transform,
-                                  target_transform=None):
-        datas = MyClassCityscapes(root=data_path,
-                                  split=split,
-                                  mode=mode,
-                                  target_type=target_type,
-                                  transforms=transform,
-                                  target_transform=target_transform)
-
-        return datas
 
     train_data = get_data_cityscapes_class(data_path, "train", 'fine', 'semantic', transform_A)
     val_data = get_data_cityscapes_class(data_path, "val", 'fine', 'semantic', transform_A)

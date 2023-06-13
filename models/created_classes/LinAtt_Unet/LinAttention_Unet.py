@@ -238,7 +238,7 @@ class Attention_Gate(nn.Module):
 
     def forward(self, x):
         x = self.conv_layer(x)
-        print(f'x shape: {x.shape}')
+        # print(f'x shape: {x.shape}')
         # print(f'x shape: {x.shape}')
 
         _, _, h, w = x.shape
