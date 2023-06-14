@@ -288,7 +288,7 @@ def test_step_v2(model, dataloader, loss_fn, device, segformer: bool = False):
             loss = loss_fn(test_pred, seg.long())
             iou_loss += iou_metric(test_pred, seg, device)
             pixel_loss += pixel_metric(test_pred, seg)
-            f1_loss += f1_metric(test_pred, seg.unsqueeze(dim=1), device)
+            f1_loss += f1_metric(test_pred, seg, device)
 
             test_loss += loss
 

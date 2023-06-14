@@ -31,15 +31,16 @@ segmodel = LongSegFormer(in_channels=3,
                          decoder_channels=256,
                          scale_factors=[8, 4, 2, 1],
                          num_classes=20)
-segmodel.load_state_dict(torch.load(f'../models/checkpoints/LongSegFormer/300-600.pth'))
+segmodel.load_state_dict(torch.load(f=f'../models/checkpoints/LongSegFormer/LongSegFormer-300-from-600.pth'))
 segmodel.to(device)
 
 res_dict = test_step_v2(model=segmodel,
                         dataloader=val_dataloader,
                         loss_fn=loss_fn,
-                        device=device)
+                        device=device,
+                        segformer=True)
 
-print(f'Model Name: {res_dict["model_name"]}'
-      f'IoU loss: {res_dict["model_IoU_loss"]}'
-      f'Pixel accuracy: {res_dict["model_Pixel_loss"]}'
-      f'F1 loss: {res_dict["model_F1_loss"]}')
+print(f'Model Name: {res_dict["model_name"]}\n'
+      f'IoU loss: {round(res_dict["model_IoU_loss"], 4)}\n'
+      f'Pixel accuracy: {round(res_dict["model_Pixel_loss"], 4)}\n'
+      f'F1 loss: {round(res_dict["model_F1_loss"], 4)}\n')

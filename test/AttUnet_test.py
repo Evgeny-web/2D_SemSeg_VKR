@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 
 # Setup agnostic-code cuda
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f'device is {device}!')
 
 # Get train dataloader cityscapes
 
@@ -24,7 +25,7 @@ loss_fn = get_cross_entropy_loss()
 segmodel = AttentionUnetModel(in_channels=3,
                               out_channels=20,
                               )
-segmodel.load_state_dict(torch.load(f'../models/checkpoints/AttUnet/300-600.pth'))
+segmodel.load_state_dict(torch.load(f=f'../models/checkpoints/AttUnet/300-300.pth'))
 segmodel.to(device)
 
 res_dict = test_step_v2(model=segmodel,
@@ -32,7 +33,7 @@ res_dict = test_step_v2(model=segmodel,
                         loss_fn=loss_fn,
                         device=device)
 
-print(f'Model Name: {res_dict["model_name"]}'
-      f'IoU loss: {res_dict["model_IoU_loss"]}'
-      f'Pixel accuracy: {res_dict["model_Pixel_loss"]}'
-      f'F1 loss: {res_dict["model_F1_loss"]}')
+print(f'Model Name: {res_dict["model_name"]}\n'
+      f'IoU loss: {round(res_dict["model_IoU_loss"], 4)}\n'
+      f'Pixel accuracy: {round(res_dict["model_Pixel_loss"], 4)}\n'
+      f'F1 loss: {round(res_dict["model_F1_loss"], 4)}\n')

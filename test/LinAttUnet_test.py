@@ -24,7 +24,7 @@ segmodel = LinAttentionUnetModel(in_channels=3,
                                  out_channels=20,
                                  seq_len=2048 # Only for lin Attention Unet model
                                  )
-segmodel.load_state_dict(torch.load(f'../models/checkpoints/LinAttUnet/300-600.pth'))
+segmodel.load_state_dict(torch.load(f'../models/checkpoints/LinAttUnet/300-from-600.pth'))
 segmodel.to(device)
 
 res_dict = test_step_v2(model=segmodel,
@@ -32,10 +32,10 @@ res_dict = test_step_v2(model=segmodel,
                         loss_fn=loss_fn,
                         device=device)
 
-print(f'Model Name: {res_dict["model_name"]}'
-      f'IoU loss: {res_dict["model_IoU_loss"]}'
-      f'Pixel accuracy: {res_dict["model_Pixel_loss"]}'
-      f'F1 loss: {res_dict["model_F1_loss"]}')
+print(f'Model Name: {res_dict["model_name"]}\n'
+      f'IoU loss: {round(res_dict["model_IoU_loss"], 4)}\n'
+      f'Pixel accuracy: {round(res_dict["model_Pixel_loss"], 4)}\n'
+      f'F1 loss: {round(res_dict["model_F1_loss"], 4)}\n')
 
 
 

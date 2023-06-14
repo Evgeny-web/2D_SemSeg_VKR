@@ -1,6 +1,7 @@
 from time import time
 
 import torch
+import os
 
 from models.created_classes.U_net.UNetModel import UNetModel
 from models.created_classes.Attention_U_net.Attention_UnetModel import AttentionUnetModel
@@ -49,7 +50,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                           number_conv_layers=2,
                           )
 
-        model.load_state_dict(torch.load(f'../models/checkpoints/Unet/{num_epoch}-300.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/Unet/{num_epoch}-300.pth'))
         model.to(device)
 
     elif name_model == 'AttUnetModel':
@@ -63,7 +64,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                                    numberConvLayers=2,
                                    )
 
-        model.load_state_dict(torch.load(f'../models/checkpoints/AttUnet/{num_epoch}-300.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/AttUnet/{num_epoch}-300.pth'))
         model.to(device)
 
     elif name_model == "SegFormer":
@@ -78,7 +79,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                           decoder_channels=256,
                           scale_factors=[8, 4, 2, 1],
                           num_classes=20)
-        model.load_state_dict(torch.load(f'../models/checkpoints/SegFormer/SegFormer-{num_epoch}-600.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/SegFormer/SegFormer-{num_epoch}-from-600.pth'))
         model.to(device)
 
     elif name_model == "LinSegFormer":
@@ -94,7 +95,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                                 decoder_channels=256,
                                 scale_factors=[8, 4, 2, 1],
                                 num_classes=20)
-        model.load_state_dict(torch.load(f'../models/checkpoints/LinSegFormer/LinSegFormer-{num_epoch}-600.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/LinSegFormer/{num_epoch}-from-600.pth'))
         model.to(device)
 
     elif name_model == "LongSegFormer":
@@ -109,7 +110,7 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                               decoder_channels=256,
                               scale_factors=[8, 4, 2, 1],
                               num_classes=20)
-        model.load_state_dict(torch.load(f'../models/checkpoints/LongSegFormer/LongSegFormer-{num_epoch}-600.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/LongSegFormer/LongSegFormer-{num_epoch}-from-600.pth'))
         model.to(device)
 
     elif name_model == "LinAttUnetModel":
@@ -117,13 +118,13 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
                                       out_channels=20,
                                       seq_len=2048  # Only for lin Attention Unet model
                                       )
-        model.load_state_dict(torch.load(f'../models/checkpoints/LinAttUnet/{num_epoch}-600.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/LinAttUnet/{num_epoch}-from-600.pth'))
         model.to(device)
 
     elif name_model == 'LongAttUnetModel':
         model = LongAttentionUnetModel(in_channels=3,
                                        out_channels=20)
-        model.load_state_dict(torch.load(f'../models/checkpoints/LongAttUnet/{num_epoch}-600.pth'))
+        model.load_state_dict(torch.load(f'models/checkpoints/LongAttUnet/{num_epoch}-from-600.pth'))
         model.to(device)
 
     model.eval()
@@ -163,4 +164,4 @@ def vizualise_result_semseg(name_model: str, dataloader: str, device: str, num_e
         ax[i][2].set_title(f'Mask {name_model}')
         ax[i][2].axis(False)
 
-    plt.savefig(fname=f'../models/figure_out_results/{name_model}-{num_epoch}.png', format="png")
+    plt.savefig(fname=f'models/figure_out_results/{name_model}-{num_epoch}.png', format="png")
