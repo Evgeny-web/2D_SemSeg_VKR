@@ -9,7 +9,7 @@ from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
 
-from models.created_classes.SegForm_with_LongFormAtt.longformer2d import *
+from models.created_classes.LongSegFormer.longformer2d import *
 
 
 class LongAttentionUnetModel(nn.Module):

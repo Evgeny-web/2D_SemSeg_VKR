@@ -6,8 +6,8 @@ import os
 from models.created_classes.U_net.UNetModel import UNetModel
 from models.created_classes.Attention_U_net.Attention_UnetModel import AttentionUnetModel
 from models.created_classes.SegFormer.SegFormer import SegFormer
-from models.created_classes.SegFor_wtih_LinFormerAtt.NewLinSegFormer import NewLinSegFormer
-from models.created_classes.SegForm_with_LongFormAtt.LongSegFormer import LongSegFormer
+from models.created_classes.LinSegFormer.NewLinSegFormer import NewLinSegFormer
+from models.created_classes.LongSegFormer.LongSegFormer import LongSegFormer
 from models.created_classes.LinAtt_Unet.LinAttention_Unet import LinAttentionUnetModel
 from models.created_classes.LongAttUnet.LongAttentionUnet import LongAttentionUnetModel
 

@@ -5,7 +5,7 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
-from models.created_classes.SegFor_wtih_LinFormerAtt.mhsa import compute_mhsa
+from models.created_classes.LinSegFormer.mhsa import compute_mhsa
 
 
 def project_vk_linformer(v, k, E):

@@ -5,38 +5,29 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
-from models.created_classes.SegFor_wtih_LinFormerAtt.mhsa import compute_mhsa
-from models.created_classes.SegFor_wtih_LinFormerAtt.LinAttVision import LinformerSelfAttention
-
-def project_vk_linformer(v, k, E):
-    # project k,v
-    v = torch.einsum('b h j d , j k -> b h k d', v, E)
-    k = torch.einsum('b h j d , j k -> b h k d', k, E)
-    return v, k
+from models.created_classes.LongSegFormer.longformer2d import *
 
 
-class NewLinSegFormer(nn.Module):
+
+class LongSegFormer(nn.Module):
     def __init__(
-        self,
-        in_channels: int,
-        widths: List[int],
-        seq_len: List[int],
-        depths: List[int],
-        all_num_heads: List[int],
-        patch_sizes: List[int],
-        overlap_sizes: List[int],
-        reduction_ratios: List[int],
-        mlp_expansions: List[int],
-        decoder_channels: int,
-        scale_factors: List[int],
-        num_classes: int,
-        drop_prob: float = 0.0,
+            self,
+            in_channels: int,
+            widths: List[int],
+            depths: List[int],
+            all_num_heads: List[int],
+            patch_sizes: List[int],
+            overlap_sizes: List[int],
+            reduction_ratios: List[int],
+            mlp_expansions: List[int],
+            decoder_channels: int,
+            scale_factors: List[int],
+            num_classes: int,
+            drop_prob: float = 0.0,
     ):
-
         super().__init__()
         self.encoder = SegFormerEncoder(
             in_channels,
-            seq_len,
             widths,
             depths,
             all_num_heads,
@@ -56,6 +47,7 @@ class NewLinSegFormer(nn.Module):
         features = self.decoder(features[::-1])
         segmentation = self.head(features)
         return segmentation
+
 
 class LayerNorm2d(nn.LayerNorm):
     def forward(self, x):
@@ -85,50 +77,40 @@ class OverlapPatchMerging(nn.Module):
         return pathces_img
 
 
+# print(f"LongFOrmer _________")
+# tensor = torch.randn(1,3,512,512)
+# overlap = OverlapPatchMerging(3, 64, 7, 4)
+# output, nx, ny = overlap(tensor)
+# print(output.shape)
+# print(f'nx: {nx}, ny: {ny}')
+# print('______________')
+
+
 class EfficientMultiHeadAttention(nn.Module):
-    def __init__(self, channels: int, seq_len: int,  reduction_ratio: int = 1, num_heads: int = 8):
+    def __init__(self, channels: int, reduction_ratio: int = 1, num_heads: int = 8):
         super().__init__()
-        self.channels = channels
-        self.reducer = nn.Sequential(
-            nn.Conv2d(
-                channels, channels, kernel_size=reduction_ratio, stride=reduction_ratio
-            ),
-            LayerNorm2d(channels),
-        )
-        self.att = LinformerSelfAttention(
-            dim=channels, seq_len=seq_len, num_heads=num_heads
+        self.att = Long2DSCSelfAttention(
+            channels, num_heads=num_heads, nglo=0
         )
 
     def forward(self, x):
-        # print(f'shapw x before: {x.shape}')
-        # print(f'x dim() : {x.dim()}')
-        # print(f'x shape: {x.shape}')
         _, _, h, w = x.shape
-        # reduced_x = self.reducer(x)
-        # # print(f'reduced_x after reducer: {reduced_x.shape}')
-        # # attention needs tensor of shape (batch, sequence_length, channels)
-        # reduced_x = rearrange(reduced_x, "b c h w -> b (h w) c")
-        x = rearrange(x, "b c h w -> b (h w) c")
+        # print(f'x shape: {x.shape}')
+        nx, ny = x.shape[-2:]
 
-        out = self.att(x)
+        x = rearrange(x, "b c h w -> b (h w) c")
+        # print(f'x after rearrange: {x.shape}')
+        out = self.att(x, nx, ny)
         # reshape it back to (batch, channels, height, width)
         out = rearrange(out, "b (h w) c -> b c h w", h=h, w=w)
         return out
 
-# print(f"LinFOrmer _________")
-# tensor = torch.randn(1,3,512,512)
-# overlap = OverlapPatchMerging(3, 64, 7, 4)
-# output = overlap(tensor)
-# print(f'output shape after patch merging: {output.shape}')
-# print('______________')
-#
+
 # ratio = 4
 # channels = output.shape[1]
 # att = EfficientMultiHeadAttention(channels, ratio)
-# output = att(output)
+# output = att(output, nx, ny)
 # print(f'Output after att: {output.shape}')
-
-
 
 class MixMLP(nn.Sequential):
     def __init__(self, channels: int, expansion: int = 4):
@@ -166,7 +148,6 @@ class SegFormerEncoderBlock(nn.Sequential):
     def __init__(
             self,
             channels: int,
-            seq_len: int,
             reduction_ratio: int = 1,
             num_heads: int = 8,
             mlp_expansion: int = 4,
@@ -176,7 +157,7 @@ class SegFormerEncoderBlock(nn.Sequential):
             ResidualAdd(
                 nn.Sequential(
                     LayerNorm2d(channels),
-                    EfficientMultiHeadAttention(channels, seq_len, reduction_ratio, num_heads),
+                    EfficientMultiHeadAttention(channels, reduction_ratio, num_heads),
                 )
             ),
             ResidualAdd(
@@ -194,7 +175,6 @@ class SegFormerEncoderStage(nn.Sequential):
             self,
             in_channels: int,
             out_channels: int,
-            seq_len: int,
             patch_size: int,
             overlap_size: int,
             drop_probs: List[int],
@@ -210,7 +190,7 @@ class SegFormerEncoderStage(nn.Sequential):
         self.blocks = nn.Sequential(
             *[
                 SegFormerEncoderBlock(
-                    out_channels, seq_len, reduction_ratio, num_heads, mlp_expansion, drop_probs[i]
+                    out_channels, reduction_ratio, num_heads, mlp_expansion, drop_probs[i]
                 )
                 for i in range(depth)
             ]
@@ -240,7 +220,6 @@ class SegFormerEncoder(nn.Module):
     def __init__(
             self,
             in_channels: int,
-            seq_len: List[int],
             widths: List[int],
             depths: List[int],
             all_num_heads: List[int],
@@ -259,7 +238,6 @@ class SegFormerEncoder(nn.Module):
                 for args in zip(
                 [in_channels, *widths],
                 widths,
-                seq_len,
                 patch_sizes,
                 overlap_sizes,
                 chunks(drop_probs, sizes=depths),
@@ -304,13 +282,14 @@ class SegFormerDecoder(nn.Module):
             new_features.append(x)
         return new_features
 
+
 class SegFormerSegmentationHead(nn.Module):
     def __init__(self, channels: int, num_classes: int, num_features: int = 4):
         super().__init__()
         self.fuse = nn.Sequential(
             nn.Conv2d(channels * num_features, channels, kernel_size=1, bias=False),
-            nn.ReLU(), # why relu? Who knows
-            nn.BatchNorm2d(channels) # why batchnorm and not layer norm? Idk
+            nn.ReLU(),  # why relu? Who knows
+            nn.BatchNorm2d(channels)  # why batchnorm and not layer norm? Idk
         )
         self.predict = nn.Conv2d(channels, num_classes, kernel_size=1)
 
@@ -320,11 +299,27 @@ class SegFormerSegmentationHead(nn.Module):
         x = self.predict(x)
         return x
 
+# r = 4
+# channels = 8
+# x = torch.randn((1, channels, 64, 64))
+# _, _, h, w = x.shape
+# # we want a vector of shape 1, 8, 32, 32
+# x = rearrange(x, "b c h w -> b (h w) c") # shape = [1, 4096, 8]
+# x = rearrange(x, "b (hw r) c -> b hw (c r)", r=r) # shape = [1, 1024, 32]
+# reducer = nn.Linear(channels*r, channels)
+# x = reducer(x) # shape = [1, 1024, 8]
+# half_r = r // 2
+# x = rearrange(x, "b (h w) c -> b c h w", h=h//half_r) # shape = [1, 8, 32, 32]
+# print(x.shape)
+#
+# x = torch.randn((1, channels, 64, 64))
+# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
+# print(block(x).shape)
 
-# segformer = NewLinSegFormer(
+
+# segformer = LongSegFormer(
 #     in_channels=3,
 #     widths=[64, 128, 256, 512],
-#     seq_len=[8192, 2048, 512, 128],
 #     depths=[3, 4, 6, 3],
 #     all_num_heads=[1, 2, 4, 8],
 #     patch_sizes=[7, 3, 3, 3],
@@ -337,12 +332,5 @@ class SegFormerSegmentationHead(nn.Module):
 # )
 #
 # segmentation = segformer(torch.randn((4, 3, 256, 512)))
-# print(segmentation.shape[2]) # torch.Size([1, 100, 56, 56])
+# print(segmentation.shape[2])
 # print(segmentation.size())
-
-# r=4
-# channels = 8
-#
-# x = torch.randn((1, channels, 64, 64))
-# block = EfficientMultiHeadAttention(channels, reduction_ratio=r)
-# print(block(x).shape)

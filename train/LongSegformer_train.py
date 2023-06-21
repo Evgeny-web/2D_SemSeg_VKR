@@ -1,5 +1,5 @@
 # Import needs libraries
-from models.created_classes.SegForm_with_LongFormAtt.LongSegFormer import LongSegFormer
+from models.created_classes.LongSegFormer.LongSegFormer import LongSegFormer
 from utils.cityscapes_dataloader import *
 from utils.optimizers_loss_functions import *
 from utils.checkpoints import checkpoint

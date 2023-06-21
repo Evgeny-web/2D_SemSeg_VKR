@@ -9,7 +9,7 @@ from einops import rearrange
 from timm.models.layers import trunc_normal_
 from timm.models.layers import DropPath, trunc_normal_, to_2tuple
 
-from models.created_classes.SegForm_with_LongFormAtt.slidingchunk_2d import slidingchunk_2d, mask_invalid_locations, slidingchunk_2dautograd
+from models.created_classes.LongSegFormer.slidingchunk_2d import slidingchunk_2d, mask_invalid_locations, slidingchunk_2dautograd
 
 class Long2DSCSelfAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., w=7, d=1,

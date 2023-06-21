@@ -18,8 +18,9 @@ from albumentations.pytorch import ToTensorV2
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from torchvision.datasets import Cityscapes
 
-data_path = "/media/evgeny/6610D40610D3DB5F/Download_Softwares/PyCharm/Projects/2D_SemSeg_VKR/Datasets/CityScapes"
+data_path = "/media/evgeny/6610D40610D3DB5F/Download_Softwares/PyCharm/Projects/2D_SemSeg_VKR/Datasets/CityScapes"  # path to folder cityscapes dataset
 
+# Useable classes and color map
 ignore_index = 255
 void_classes = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
 valid_classes = [ignore_index, 7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33]
@@ -54,6 +55,7 @@ colors = [[0, 0, 0],
 
 label_colors = dict(zip(range(n_classes), colors))
 
+# setting transform data
 transform_A = A.Compose(
     [
         A.Resize(256, 512),
@@ -63,6 +65,7 @@ transform_A = A.Compose(
     ])
 
 
+# function for resize mask in segformer models, they output data in 4x less
 def resize_masks(masks, predict):
     new_masks = torch.zeros([masks.shape[0], predict.shape[2], predict.shape[3]])
 
@@ -79,6 +82,7 @@ def resize_masks(masks, predict):
     return new_masks.to('cuda')
 
 
+## function for encode and decode masks
 def encode_segmap(mask):
     """
     Переназначаем все нежелательные классы на ignore_index (255)
@@ -110,6 +114,7 @@ def decode_segmap(temp):
     return rgb
 
 
+# class get data from folder
 class MyClassCityscapes(Cityscapes):
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
@@ -139,6 +144,7 @@ class MyClassCityscapes(Cityscapes):
         return transformed['image'], transformed['mask']
 
 
+# function fo get data
 def get_data_cityscapes_class(data_path: str, split: str, mode: str, target_type: str, transform,
                               target_transform=None):
     datas = MyClassCityscapes(root=data_path,
@@ -151,6 +157,7 @@ def get_data_cityscapes_class(data_path: str, split: str, mode: str, target_type
     return datas
 
 
+# get dataloader data and steps for vizualise metrics in train loop
 def get_dataloader_cityscapes(batch_size: int = 2):
     """
     :param batch_size:

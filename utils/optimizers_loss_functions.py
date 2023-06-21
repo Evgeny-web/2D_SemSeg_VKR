@@ -5,6 +5,7 @@ from time import time
 from torchmetrics import F1Score, JaccardIndex
 
 
+# optimizers models
 def get_unet_optimizer(model):
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.00004)
     return optimizer
@@ -20,10 +21,12 @@ def get_segformer_optimizer(model):
     return optimizer
 
 
+# Loss function
 def get_cross_entropy_loss():
     return nn.CrossEntropyLoss()
 
 
+# Usable metrics
 def iou_metric(logits, targets, device):
     # Jaccard loss
     # start_time = time()
@@ -74,8 +77,3 @@ def f1_metric(logits, target, device):
 
     return round(result.item(), 5)
 
-# x1 = torch.randint(size=(4, 20, 512, 512), high=19, dtype=torch.float)
-# x2 = torch.randint(size=(4, 512, 512), high=19, dtype=torch.float)
-#
-# i = f1_metric(x1, x2)
-# print(i)

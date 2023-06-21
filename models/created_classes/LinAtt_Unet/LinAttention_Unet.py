@@ -8,7 +8,7 @@ from einops import rearrange
 from torchvision.ops import StochasticDepth
 
 from typing import List, Iterable
-from models.created_classes.SegFor_wtih_LinFormerAtt.LinAttVision import LinformerSelfAttention
+from models.created_classes.LinSegFormer.LinAttVision import LinformerSelfAttention
 
 
 class LinAttentionUnetModel(nn.Module):

@@ -1,5 +1,5 @@
 # Import needs libraries
-from models.created_classes.SegFor_wtih_LinFormerAtt.NewLinSegFormer import NewLinSegFormer
+from models.created_classes.LinSegFormer.NewLinSegFormer import NewLinSegFormer
 from utils.cityscapes_dataloader import *
 from utils.optimizers_loss_functions import *
 from utils.checkpoints import checkpoint
